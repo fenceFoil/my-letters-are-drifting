@@ -14,7 +14,7 @@ model_inputs = {
 }
 
 config = ConfigParser()
-config.read('vars.env')
+config.read('.env')
 
 # Run the model
 out = banana.run(config['DEFAULT']['api_key'] , config['DEFAULT']['model_key'], model_inputs)
