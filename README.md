@@ -13,3 +13,4 @@ model_key=4444b4d4-44a4-4444-b444-4e444a444d44
 CREDITS
 
 Bijan -- wrote the bad word list
+Michael -- wrote the goal list

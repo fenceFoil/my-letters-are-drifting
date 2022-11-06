@@ -12,3 +12,4 @@ requests
 hsluv
 pillow
 banana_dev
+imageio
