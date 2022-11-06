@@ -164,6 +164,8 @@
                     <div x-show="!wordValid" x-text="wordValidReason"></div>
                     <input type="submit" value="Submit Word" :disabled="!wordValid"></input>
                 </form>
+                <img :src="`http://45.33.103.221/generatedImages/${gameState.latestImageName}`">
+
             </main>
         </main>
     </div>
