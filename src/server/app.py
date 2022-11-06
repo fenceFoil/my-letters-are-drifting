@@ -342,9 +342,9 @@ async def runPresenterConnection(websocket: WebSocket):
                 if msg['type'] == 'endGame':
                     gameStarted = False
                     currTurnPlayerName = None
-                    imageLog = []
                     timeAsString = str(time.monotonic())
                     imageio.mimwrite('../generatedImageGifs/{timeAsString}.gif', imageLog, format= '.gif', fps = 1)
+                    imageLog = []
                     await broadcastGameStateToPlayers()
                 if msg['type'] == 'forceNextTurn':
                     await goToNextTurn()
