@@ -128,8 +128,8 @@ async def broadcastGameStateToPresenters():
 
 GOAL_WORDS_LIST = []
 if exists('goalWords.txt'):
-    with open('goalWords.txt', 'r') as f:
-        GOAL_WORDS_LIST = [s.strip() for s in f.read().split(',')]
+    with open('goalWords.txt', 'r', encoding='utf-8') as f:
+        GOAL_WORDS_LIST = [s.strip() for s in json.load(f)]
 
 async def addPlayer(name):
     """add new player to end of playerlist"""
