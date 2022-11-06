@@ -157,8 +157,8 @@
                     Your Goal: <span x-text="gameState.playerGoals[username]"></span>
                 </div>
             </main>
-            <main x-show="currTurnPlayerName === username">
-                <form onsubmit="return false" @submit="if(wordValid){send({type:'submitWord',word:newWord});newWord='';currTurnPlayerName='gotoanotherplayerquickly'}">
+            <main x-show="(currTurnPlayerName === username) && (lastRoundAndGameSentWord!==`${gameState.round}_${gameState.gameID}`)">
+                <form onsubmit="return false" @submit="if(wordValid){send({type:'submitWord',word:newWord});newWord='';lastRoundAndGameSentWord=`${gameState.round}_${gameState.gameID}`}">
                     Add a word to steer the drifting time machine!
                     <input type="text" x-model="newWord" placeholder="Enter a single word" @input="testWord(newWord)"></input>
                     <div x-show="!wordValid" x-text="wordValidReason"></div>
@@ -198,6 +198,8 @@
                 playerNames: [],
                 wordValid: false,
                 wordValidReason: '',
+                lockEnterWord: false,
+                lastRoundAndGameSentWord: '',
                 WEBSOCKET_URL: 'ws://45.33.103.221/playersocket',
 
                 init() {
@@ -260,6 +262,10 @@
                             if (this.username === msg.playerName) {
                                 location.reload()
                             }
+                        } else if (msg.type === 'lockEnterWord') {
+                            lockEnterWord = true;
+                        } else if (msg.type === 'unlockEnterWord') {
+                            lockEnterWord = false;
                         }
                     });
 

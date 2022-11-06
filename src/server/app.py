@@ -65,6 +65,7 @@ lastPlayer = 0
 lastRound = 0
 mostRecentPromptAdded = None
 playerGoals: dict[str, str] = {}
+gameID = uuid.uuid4().hex
 
 presenterConns: list[WebSocket] = []
 
@@ -111,6 +112,7 @@ async def broadcastGameStateToPlayers():
         'generatingImage': generatingImage,
         'promptHTML': promptToHTML(prompt),
         'playerGoals': playerGoals,
+        'gameID': gameID,
         'recentWords': sorted([{'word':piece.word,'playerName':piece.playerName,'submittedNum':piece.submittedNum} for piece in prompt], key=lambda x: x['submittedNum'])
     }
     lastSentGameState = msg
@@ -163,6 +165,12 @@ async def goToNextTurn():
         currTurnPlayerName = nextPlayer
 
     await broadcastGameStateToPlayers()
+    for currConn in [c.websocket for c in playerConns.values() if c.playerName == currTurnPlayerName]:
+        try:
+            await currConn.send_json({'type':'unlockEnterWord'})
+        except Exception as e:
+            pass
+
 
 async def undoTurn():
     # go to last player. if resetting list, decrement round. remove last-added prompt from list. 
@@ -234,8 +242,14 @@ async def updatePictureFromPrompt(prompt):
 async def submitWord(playerName:str, word: str):
     global mostRecentPromptAdded
     mostRecentPromptAdded = PromptPiece(playerName, word, time.monotonic(), len(prompt))
+    for currConn in [c.websocket for c in playerConns.values() if c.playerName == playerName]:
+        try:
+            await currConn.send_json({'type':'lockEnterWord'})
+        except Exception as e:
+            pass
     prompt.insert(random.randint(0, len(prompt)), mostRecentPromptAdded)
-    asyncio.create_task(updatePictureFromPrompt(prompt))
+    await updatePictureFromPrompt(prompt)
+    await goToNextTurn()
 
 async def snipeWord(wordNum: int):
     global prompt
@@ -282,8 +296,7 @@ async def runPlayerConnection(websocket: WebSocket):
                     # TODO: REMOVE PLAYER. handle actually changing names...
                     await addPlayer(msg['name'])
                 if msg['type'] == 'submitWord':
-                    await submitWord(myConn.playerName, msg['word'])
-                    await goToNextTurn()
+                    asyncio.create_task(submitWord(myConn.playerName, msg['word']))
                 if msg['type'] == 'testWord':
                     good, reason = await isWordAcceptable(msg['word'])
                     await websocket.send_json({
@@ -315,7 +328,7 @@ async def runPlayerConnection(websocket: WebSocket):
 
 @app.websocket('/presentersocket')
 async def runPresenterConnection(websocket: WebSocket):
-    global gameStarted, currTurnPlayerName, prompt, round
+    global gameStarted, currTurnPlayerName, prompt, round, gameID
     presenterConns.append(websocket)
 
     await websocket.accept()
@@ -334,6 +347,7 @@ async def runPresenterConnection(websocket: WebSocket):
                     # Set round and turn
                     round = 0
                     currTurnPlayerName = playerNames[0]
+                    gameID = uuid.uuid4().hex
                     prompt = []
                     await broadcastGameStateToPlayers()
                 if msg['type'] == 'endGame':
