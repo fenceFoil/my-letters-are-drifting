@@ -2,7 +2,7 @@ src/generatedImages/*.jpg
 src/generatedImages/*.json
 tempout
 src/www
-
+src/server/badWords.txt
 
 
 

@@ -36,13 +36,13 @@
             color: orchid;
             display: grid;
             place-items: center;
-            height: calc(100vh - 2em);
+            height: calc(100vh);
             /*font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;*/
             /*font-family: 'Courier Prime', monospace;*/
             /*font-family: 'headerfont', serif;*/
 
             /*font-family: 'Della Respira', serif;*/
-            padding: 1em;
+            /*padding: 1em;*/
             font-size: 2rem;
         }
 
@@ -74,6 +74,11 @@
         
         .highlight::before {            
             content: '> ';
+        }
+
+        a {
+            text-decoration: none; /* no underline */
+            color: orchid;
         }
         
         @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
@@ -117,6 +122,7 @@
         }
 
         .generatingSpinner {
+            z-index: 100;
             position: absolute;
             width: 20%;
             height: 20%;
@@ -142,6 +148,32 @@
             /*visibility: hidden;*/
             filter: blur(0.2em);
         }
+
+        .mostrecentword {
+            font-size: 1.7em;
+            color: orchid;
+        }
+
+        .recentword {
+            font-size: 1.3em;
+            color: pink;
+        }
+
+        .playerwordlabel {
+            font-style: italic;
+            font-size: 0.5em;
+        }
+        .wordList {
+            display: flex;
+            flex-direction: column;
+            margin-left: 1ch;
+            max-height: 15em;
+            overflow-y: hidden;
+        }
+
+        .playerGoal {
+            font-size: 0.5em;
+        }
     </style>
 
     <script>
@@ -155,20 +187,34 @@
     <script src="anime.min.js"></script>
     <script src="myURL.js"></script>
     <div id="app" x-data="d">
-        <div>Round <span x-text="gameState.round"></span></div>
+        <div>Round <span x-text="gameState.round + 1"></span><br>JOIN @ <span x-text="BASE_URL"></span><br><!--span x-show="generatingImage">Generating...</span><span x-text="generatingImage"></span--></div>
         <div style="display:flex;">
-            <div class="playerList">Players: 
-                <template x-for="player in gameState.playerNames"><div x-text="player" :class="(player === gameState.currTurnPlayerName)?'highlight':''"></div></template>
+            <div class="playerList"><span style="color: white">Players:</span>
+                <template x-for="player in gameState.playerNames">
+                    <div>
+                        <a href="#" @click="send({type:'kickPlayer',playerName:player});return false"><div x-text="player" :class="(player === gameState.currTurnPlayerName)?'highlight':''"></div></a>
+                        <!--span class="playerGoal" x-text="gameState.playerGoals[player]"></span-->
+                    </div>
+                </template>
             </div>
 
             <div class="previewImage" style="flex:1">
-                <img class="generatingSpinner" src="media/tornadobg.jpg" x-show="gameState.generatingImage">
-                <img class="previewImageImg" :src="`${BASE_URL}generatedImages/${gameState.latestImageName}`">
+                <img class="generatingSpinner" src="media/tornadobg.jpg" x-show="generatingImage">
+                <img @click="hideImage=!hideImage" x-show="!hideImage" class="previewImageImg" :src="`${BASE_URL}generatedImages/${gameState.latestImageName}`">
+                <img @click="hideImage=!hideImage" x-show="hideImage" class="previewImageImg" src="media/output1041.jpg">
+            </div>
+
+            <div class="wordList">
+                <template x-for="word in gameState.recentWords.reverse()">
+                    <div><a href="#" @click="send({type:'snipeWord',wordNum:word.submittedNum})">
+                        <span x-text="word.word"></span><span class="playerwordlabel" x-text="word.playerName"></span>
+                    </a></div>
+                </template>
             </div>
         </div>
-        <div x-data="{show:true}" style="display:flex;flex-direction:column">
-            <button @click="show=!show">👁 Prompt:</button>
-            <span style="margin-top: 0.7em" x-text="gameState.promptString" :class="show?'':'hidden'"></span>
+        <div x-data="{show:true}" style="display:flex;flex-direction:column;color: white;">
+            <!--button @click="show=!show">👁 Prompt:</button-->
+            <span style="padding-top: 0.2em" x-html="gameState.promptHTML" :class="show?'':'hidden'"></span>
         </div>
         <div>
             <button @click="send({type:'startGame'})" x-show="(!gameState.gameStarted) && (gameState.playerNames?.length > 0)">Start Game</button>
@@ -188,6 +234,8 @@
                 presenterGameState: {},
                 WEBSOCKET_URL: '',
                 BASE_URL: '',
+                hideImage: false,
+                generatingImage: false,
 
                 sleep(ms) {
                     return new Promise(resolve => setTimeout(resolve, ms));
@@ -209,6 +257,7 @@
                         msg = JSON.parse(event.data)
                         if (msg.type === 'gamestate') {
                             this.gameState = msg
+                            this.generatingImage = msg.generatingImage
                         } else if (msg.type === 'presentergamestate') {
                             this.presenterGameState = msg
                         }

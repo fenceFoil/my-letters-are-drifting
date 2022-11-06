@@ -13,6 +13,7 @@ from pprint import pprint
 import threading
 import time
 import uuid
+from os.path import exists
 
 from requests.api import delete
 #custom
@@ -63,6 +64,7 @@ lastSentGameState = ''
 lastPlayer = 0
 lastRound = 0
 mostRecentPromptAdded = None
+playerGoals: dict[str, str] = {}
 
 presenterConns: list[WebSocket] = []
 
@@ -76,11 +78,24 @@ class PromptPiece:
     playerName: str
     word: str
     submittedTime: float
+    submittedNum: int
     # TODO: player and time and order and stuff
 
 def promptToString(prompt):
     """take the list of prompt info objects and assemble them into a string for display"""
     return ' '.join([p.word for p in prompt])
+
+def promptToHTML(prompt):
+    def wordToHTML(piece:PromptPiece):
+        if piece.submittedNum == len(prompt) - 1:
+            return f'<span class="mostrecentword">{piece.word}</span>'
+        if len(prompt) - piece.submittedNum < 5:
+            return f'<span class="recentword">{piece.word}</span>'
+        else:
+            return piece.word
+    #def wrapWithSnipeLink(s: str):
+    #    return f'<a href="#" @click="socket.send({{type:''snipeWord'',wordNum:{} }})">{s}</a>'
+    return ' '.join([wordToHTML(p) for p in prompt])
 
 async def broadcastGameStateToPlayers():
     global lastSentGameState
@@ -94,6 +109,9 @@ async def broadcastGameStateToPlayers():
         'promptString': promptToString(prompt),
         'latestImageName': latestImageName,
         'generatingImage': generatingImage,
+        'promptHTML': promptToHTML(prompt),
+        'playerGoals': playerGoals,
+        'recentWords': sorted([{'word':piece.word,'playerName':piece.playerName,'submittedNum':piece.submittedNum} for piece in prompt], key=lambda x: x['submittedNum'])
     }
     lastSentGameState = msg
     # Send it
@@ -108,15 +126,23 @@ async def broadcastGameStateToPlayers():
 async def broadcastGameStateToPresenters():
     pass
 
+GOAL_WORDS_LIST = []
+if exists('goalWords.txt'):
+    with open('goalWords.txt', 'r') as f:
+        GOAL_WORDS_LIST = [s.strip() for s in f.read().split(',')]
+
 async def addPlayer(name):
     """add new player to end of playerlist"""
     if not name in playerNames:
         playerNames.append(name)
-        # TODO: Broadcast change!
+        playerGoals[name] = random.choice(GOAL_WORDS_LIST)
+        #playerGoals[name] = 'asdfasdfas dfasdf asdfasdfasdf asdfasdfasdfas dfasdfasdf'
         await broadcastGameStateToPlayers()
 
 async def getNextPlayerName(currPlayerName):
-    """return None if at end of list"""
+    """return None if at end of list or current player not in list"""
+    if not currPlayerName in playerNames:
+        return None
     nextPlayerIndex = playerNames.index(currPlayerName)+1
     if nextPlayerIndex >= len(playerNames):
         return None
@@ -148,7 +174,7 @@ async def undoTurn():
     asyncio.create_task(updatePictureFromPrompt(prompt))
 
 async def onPlayerConnectionEnded(name):
-    # No more connections with this player name? remove from player list
+    # No more connections with this player name? remove from player list    
     if not len([c for c in playerConns.values() if c.playerName == name]) > 1:
         if currTurnPlayerName == name:
             await goToNextTurn()
@@ -156,11 +182,19 @@ async def onPlayerConnectionEnded(name):
         # TODO: Broadcast change!
         await broadcastGameStateToPlayers()
 
+# Load bad words list on startup
+BAD_WORDS_LIST = []
+if exists('badWords.txt'):
+    with open('badWords.txt', 'r') as f:
+        BAD_WORDS_LIST = [s.strip() for s in f.read().split(',')]
+
 async def isWordAcceptable(word: str):
     """return 2-tuple: first value true/false, second value reason if false"""
     # Verify there are no spaces
     if len(word.strip().split(' ')) > 1:
         return False, "Too many words!"
+    if (word.strip().lower() in BAD_WORDS_LIST):
+        return False, f"You naughty {word}"
     return True, None
 
 async def updatePictureFromPrompt(prompt):
@@ -199,12 +233,28 @@ async def updatePictureFromPrompt(prompt):
 
 async def submitWord(playerName:str, word: str):
     global mostRecentPromptAdded
-    mostRecentPromptAdded = PromptPiece(playerName, word, time.monotonic())
+    mostRecentPromptAdded = PromptPiece(playerName, word, time.monotonic(), len(prompt))
     prompt.insert(random.randint(0, len(prompt)), mostRecentPromptAdded)
+    asyncio.create_task(updatePictureFromPrompt(prompt))
+
+async def snipeWord(wordNum: int):
+    global prompt
+    prompt = [p for p in prompt if p.submittedNum != wordNum]
     asyncio.create_task(updatePictureFromPrompt(prompt))
 
 async def gameLoopRunner():
     pass
+
+async def kickPlayer(playerName:str):
+    playerNames.remove(playerName)
+    # Kick the player
+    for currConn in [c.websocket for c in playerConns.values()]:
+        try:
+            await currConn.send_json({'type':'refreshKickedPlayer','playerName':playerName})
+        except Exception as e:
+            #traceback.print_exc()
+            pass
+    await broadcastGameStateToPlayers()
 
 @app.on_event("startup")
 async def setupSimulator():
@@ -294,6 +344,10 @@ async def runPresenterConnection(websocket: WebSocket):
                     await goToNextTurn()
                 if msg['type'] == 'undoTurn':
                     await undoTurn()
+                if msg['type'] == 'snipeWord':
+                    asyncio.create_task(snipeWord(msg['wordNum']))
+                if msg['type'] == 'kickPlayer':
+                    await kickPlayer(msg['playerName'])
 
             except asyncio.exceptions.TimeoutError:
                 pass # wholly uninteresting

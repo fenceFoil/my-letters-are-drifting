@@ -153,7 +153,9 @@
             </main>
             <main x-show="currTurnPlayerName !== username">
                 Your turn is coming soon!
-                <div>TODO: Show list of player with you pointed at?</div>
+                <div style="margin-top: 1em">
+                    Your Goal: <span x-text="gameState.playerGoals[username]"></span>
+                </div>
             </main>
             <main x-show="currTurnPlayerName === username">
                 <form onsubmit="return false" @submit="if(wordValid){send({type:'submitWord',word:newWord});newWord='';currTurnPlayerName='gotoanotherplayerquickly'}">
@@ -254,6 +256,10 @@
                         } else if (msg.type === 'wordCheckResponse') {
                             this.wordValid = msg.wordValid
                             this.wordValidReason = msg.wordValidReason
+                        } else if (msg.type === 'refreshKickedPlayer') {
+                            if (this.username === msg.playerName) {
+                                location.reload()
+                            }
                         }
                     });
 
