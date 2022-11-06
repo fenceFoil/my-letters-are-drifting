@@ -153,6 +153,7 @@
     <script src="//unpkg.com/alpinejs" defer></script>
     <script src="chance.min.js"></script>
     <script src="anime.min.js"></script>
+    <script src="myURL.js"></script>
     <div id="app" x-data="d">
         <div>Round <span x-text="gameState.round"></span></div>
         <div style="display:flex;">
@@ -178,18 +179,30 @@
     </div>
     <script>
         //var WEBSOCKET_URL = 'ws://45.33.103.221:80/playersocket'
-        var WEBSOCKET_URL = 'ws://localhost:80/presentersocket'
-        var BASE_URL = 'http://localhost:80/'
+        //var WEBSOCKET_URL = `ws://${WEBSOCKET_HOST}/presentersocket`
+        //var BASE_URL = `http://${WEBSOCKET_HOST}/`
         document.addEventListener('alpine:init', () => {
             Alpine.data('d', () => (Object.assign({
                 socket: null,
                 gameState: {},
                 presenterGameState: {},
+                WEBSOCKET_URL: '',
+                BASE_URL: '',
 
-                init() {
+                sleep(ms) {
+                    return new Promise(resolve => setTimeout(resolve, ms));
+                },
+
+                async init() {
+                    while (!WEBSOCKET_HOST) {
+                        await this.sleep(200);
+                    }
+                    this.WEBSOCKET_URL = `ws://${WEBSOCKET_HOST}/presentersocket`
+                    this.BASE_URL = `http://${WEBSOCKET_HOST}/`
+                    
                     let alp = this;
 
-                    this.socket = new ReconnectingWebSocket(WEBSOCKET_URL);
+                    this.socket = new ReconnectingWebSocket(this.WEBSOCKET_URL);
                     this.socket.addEventListener('open', (event)=>{
                     });
                     this.socket.addEventListener('message', (event) => {

@@ -1,0 +1,1 @@
+var WEBSOCKET_HOST='localhost'

@@ -133,6 +133,7 @@
     <script src="//unpkg.com/alpinejs" defer></script>
     <script src="chance.min.js"></script>
     <script src="anime.min.js"></script>
+    <script src="myURL.js"></script>
     <div id="app" x-data="d">
         <main x-show="state=='connecting'">
             Connecting...
@@ -166,7 +167,22 @@
     </div>
     <script>
         //var WEBSOCKET_URL = 'ws://45.33.103.221:80/playersocket'
-        var WEBSOCKET_URL = 'ws://localhost:80/playersocket'
+        //var WEBSOCKET_URL = 'ws://localhost:80/playersocket'
+        /*function getText(){
+            // read text from URL location
+            var request = new XMLHttpRequest();
+            request.open('GET', 'myURL.txt', true);
+            request.send(null);
+            request.onreadystatechange = function () {
+                if (request.readyState === 4) {
+                    var type = request.getResponseHeader('Content-Type');
+                    if (type.indexOf("text") !== 1) {
+                        return request.responseText;
+                    }
+                }
+            }
+        }*/
+
         document.addEventListener('alpine:init', () => {
             Alpine.data('d', () => (Object.assign({
                 state: 'join',
@@ -180,8 +196,11 @@
                 playerNames: [],
                 wordValid: false,
                 wordValidReason: '',
+                WEBSOCKET_URL: 'ws://45.33.103.221/playersocket',
 
                 init() {
+                    this.WEBSOCKET_URL = `ws://${WEBSOCKET_HOST}/playersocket`
+
                     localStorage.setItem('username', this.username); // initial values
 
                     const gameControllerStateMachine = XState.createMachine({
@@ -215,7 +234,7 @@
                         localStorage.setItem('username', v);
                     })
 
-                    this.socket = new ReconnectingWebSocket(WEBSOCKET_URL);
+                    this.socket = new ReconnectingWebSocket(this.WEBSOCKET_URL);
                     this.socket.addEventListener('open', (event)=>{
                         gameStateService.send({type:'CONTINUE'})
                         this.testWord(this.newWord) // value might be pre-filled
