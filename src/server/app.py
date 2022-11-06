@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from os.path import exists
+import imageio
 
 from requests.api import delete
 #custom
@@ -71,6 +72,7 @@ presenterConns: list[WebSocket] = []
 
 config = ConfigParser()
 config.read('.env')
+imageLog = []
 
 ##########
 
@@ -233,6 +235,7 @@ async def updatePictureFromPrompt(prompt):
     image_encoded = image_byte_string.encode('utf-8')
     image_bytes = BytesIO(base64.b64decode(image_encoded))
     image = Image.open(image_bytes)
+    imageLog.append(image)
     image.save(f"../generatedImages/{imageID}.jpg", quality=92)
     # Publish a status update with the filename
     latestImageName = f'{imageID}.jpg'
@@ -353,6 +356,9 @@ async def runPresenterConnection(websocket: WebSocket):
                 if msg['type'] == 'endGame':
                     gameStarted = False
                     currTurnPlayerName = None
+                    timeAsString = str(time.monotonic())
+                    imageio.mimwrite('../generatedImageGifs/{timeAsString}.gif', imageLog, format= '.gif', fps = 1)
+                    imageLog = []
                     await broadcastGameStateToPlayers()
                 if msg['type'] == 'forceNextTurn':
                     await goToNextTurn()
