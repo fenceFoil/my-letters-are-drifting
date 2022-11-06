@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="black" />
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="normalize.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand+SC&display=swap" rel="stylesheet"> 
+    <script src="https://unpkg.com/xstate@4/dist/xstate.js"></script>
+    <!-- https://github.com/joewalnes/reconnecting-websocket/blob/master/reconnecting-websocket.min.js -->
+    <script src="reconnecting-websocket.js"></script>
+    <title>Driftgame Presenter</title>
+    <style>
+        @font-face {
+            font-family: headerfont;
+            src: url("media/Spider.otf") format("opentype");
+        }
+        
+        /* alpinejs */
+        [x-cloak] { display: none !important; }
+
+        body {
+            height: 100%;
+        }
+        
+        #app {
+            background: no-repeat center url(media/tornadobg-dark.jpg);
+            background-size: cover;
+            /*color: #00bbff;*/
+            color: orchid;
+            display: grid;
+            place-items: center;
+            height: calc(100vh - 2em);
+            /*font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;*/
+            /*font-family: 'Courier Prime', monospace;*/
+            /*font-family: 'headerfont', serif;*/
+
+            /*font-family: 'Della Respira', serif;*/
+            padding: 1em;
+            font-size: 2rem;
+        }
+
+        button {
+            background-color: thistle;
+            color: purple;
+        }
+
+        table {
+            margin-top: 2em;
+        }
+
+        thead {
+            margin-bottom: 1em;
+        }
+
+        th {
+            padding: 0 2ch;
+        }
+
+        td {
+            padding: 0 1ch;
+            text-align: left;
+        }
+
+        .highlight {
+            color: #00bbff;
+        }
+        
+        .highlight::before {            
+            content: '> ';
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+
+        .walker {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            width: 100%;
+            place-content: center;
+            color: orange;
+        }
+
+        .walkReadout {
+            color: crimson;
+            font-size: 4rem;
+        }
+
+        .integralReadout {
+            width: 20vw;
+            text-align: right;
+        }
+
+        form {
+            display:flex;
+            flex-direction:column;
+        }
+        form * {
+            margin: 0.2em 0;
+        }
+
+        .previewImage {
+            max-height: min(70vh, 90vw);
+            aspect-ratio: 1;
+            position: relative;
+        }
+
+        .previewImageImg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .generatingSpinner {
+            position: absolute;
+            width: 20%;
+            height: 20%;
+            animation-name: turnTwo;
+            animation-duration: 1s;
+            animation-iteration-count: infinite;
+            animation-timing-function: linear;
+            transform-origin: 50% 50%;
+        }
+
+        @keyframes turnTwo {
+            0% {transform: rotate(0deg);}
+            100% {transform: rotate(360deg);}
+        }
+
+        .playerList {
+            display:flex;
+            flex-direction: column;
+            margin: 1em;
+        }
+
+        .hidden {
+            /*visibility: hidden;*/
+            filter: blur(0.2em);
+        }
+    </style>
+
+    <script>
+
+    </script>
+</head>
+
+<body>
+    <script src="//unpkg.com/alpinejs" defer></script>
+    <script src="chance.min.js"></script>
+    <script src="anime.min.js"></script>
+    <div id="app" x-data="d">
+        <div>Round <span x-text="gameState.round"></span></div>
+        <div style="display:flex;">
+            <div class="playerList">Players: 
+                <template x-for="player in gameState.playerNames"><div x-text="player" :class="(player === gameState.currTurnPlayerName)?'highlight':''"></div></template>
+            </div>
+
+            <div class="previewImage" style="flex:1">
+                <img class="generatingSpinner" src="media/tornadobg.jpg" x-show="gameState.generatingImage">
+                <img class="previewImageImg" :src="`${BASE_URL}generatedImages/${gameState.latestImageName}`">
+            </div>
+        </div>
+        <div x-data="{show:true}" style="display:flex;flex-direction:column">
+            <button @click="show=!show">👁 Prompt:</button>
+            <span style="margin-top: 0.7em" x-text="gameState.promptString" :class="show?'':'hidden'"></span>
+        </div>
+        <div>
+            <button @click="send({type:'startGame'})" x-show="(!gameState.gameStarted) && (gameState.playerNames?.length > 0)">Start Game</button>
+            <button @click="send({type:'endGame'})" x-show="gameState.gameStarted">End Game</button>
+            <button @click="send({type:'undoTurn'})">Undo</button>
+            <button @click="send({type:'forceNextTurn'})">Force End Turn</button>
+        </div>
+    </div>
+    <script>
+        //var WEBSOCKET_URL = 'ws://45.33.103.221:80/playersocket'
+        var WEBSOCKET_URL = 'ws://localhost:80/presentersocket'
+        var BASE_URL = 'http://localhost:80/'
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('d', () => (Object.assign({
+                socket: null,
+                gameState: {},
+                presenterGameState: {},
+
+                init() {
+                    let alp = this;
+
+                    this.socket = new ReconnectingWebSocket(WEBSOCKET_URL);
+                    this.socket.addEventListener('open', (event)=>{
+                    });
+                    this.socket.addEventListener('message', (event) => {
+                        msg = JSON.parse(event.data)
+                        if (msg.type === 'gamestate') {
+                            this.gameState = msg
+                        } else if (msg.type === 'presentergamestate') {
+                            this.presenterGameState = msg
+                        }
+                    })
+                    // SENDING -- this.socket.send("datastring")
+                },
+
+                send(obj) {
+                    this.socket.send(JSON.stringify(obj))
+                }
+            }, {})))
+        });
+    </script>
+</body>
+
+</html>

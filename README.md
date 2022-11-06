@@ -1,4 +1,4 @@
-# my-letters-are-drifting
+# Mental Drift
 
 ![](doc/whiteboard1.png)
 

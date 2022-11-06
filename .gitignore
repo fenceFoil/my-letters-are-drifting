@@ -1,3 +1,11 @@
+src/generatedImages/*.jpg
+src/generatedImages/*.json
+tempout
+src/www
+
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="black" />
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="normalize.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand+SC&display=swap" rel="stylesheet"> 
+    <script src="https://unpkg.com/xstate@4/dist/xstate.js"></script>
+    <!-- https://github.com/joewalnes/reconnecting-websocket/blob/master/reconnecting-websocket.min.js -->
+    <script src="reconnecting-websocket.js"></script>
+    <title>Driftgame</title>
+    <style>
+        @font-face {
+            font-family: headerfont;
+            src: url("media/Spider.otf") format("opentype");
+        }
+        
+        /* alpinejs */
+        [x-cloak] { display: none !important; }
+
+        body {
+            height: 100%;
+        }
+        
+        #app {
+            background: no-repeat center url(media/tornadobg.jpg);
+            background-size: cover;
+            color: #00bbff;
+            display: grid;
+            place-items: center;
+            height: calc(100vh - 2em);
+            /*font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;*/
+            /*font-family: 'Courier Prime', monospace;*/
+            /*font-family: 'headerfont', serif;*/
+
+            /*font-family: 'Della Respira', serif;*/
+            padding: 1em;
+            font-size: 2rem;
+        }
+
+        main {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 0.7em;
+        }
+
+        input[type=submit] {
+            margin-top: 1.5em;
+        }
+
+        table {
+            margin-top: 2em;
+        }
+
+        thead {
+            margin-bottom: 1em;
+        }
+
+        th {
+            padding: 0 2ch;
+        }
+
+        td {
+            padding: 0 1ch;
+            text-align: left;
+        }
+
+        .dead {
+            color: #753c89;
+        }
+
+        .peril {
+            color: #ff00e6 !important;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+
+        .walker {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            width: 100%;
+            place-content: center;
+            color: orange;
+        }
+
+        .walkReadout {
+            color: crimson;
+            font-size: 4rem;
+        }
+
+        .integralReadout {
+            width: 20vw;
+            text-align: right;
+        }
+
+        form {
+            display:flex;
+            flex-direction:column;
+        }
+        form * {
+            margin: 0.2em 0;
+        } 
+
+        #usernameBanner {
+            position: absolute;
+            top: 0.5em;
+            left:0;
+            right: 0;
+            text-align: center;
+        }
+
+        .intro {
+            width: 40ch;
+            font-size: 0.7em;
+            font-style: italic;
+            margin-bottom: 1em;
+        }
+    </style>
+
+    <script>
+
+    </script>
+</head>
+
+<body>
+    <script src="//unpkg.com/alpinejs" defer></script>
+    <script src="chance.min.js"></script>
+    <script src="anime.min.js"></script>
+    <div id="app" x-data="d">
+        <main x-show="state=='connecting'">
+            Connecting...
+        </main>
+        <main x-show="state=='join'">
+            <div class="intro">"The tornado drifts, lost, through the desert, but then... <b>a time machine!</b><br> Can you focus its thoughts on a destination?"</div>
+            <form onsubmit="return false" @submit="send({type:'changeName',name:username});gameStateService.send({type:'SUBMITTED_NAME'})">
+                    <label for="username">Name Your Part of The Tornado:</label>
+                    <input type="text" name="username" x-model="username"  maxlength="15"></input>
+                <input type="submit" value="Begin spinning 🌪"></input>
+            </form>
+        </main>
+        <main x-show="state=='showgame'">
+            <div id="usernameBanner" x-text="username"></div>
+            <main x-show="!gameStarted">
+                Waiting for game to start...
+            </main>
+            <main x-show="currTurnPlayerName !== username">
+                Your turn is coming soon!
+                <div>TODO: Show list of player with you pointed at?</div>
+            </main>
+            <main x-show="currTurnPlayerName === username">
+                <form onsubmit="return false" @submit="if(wordValid){send({type:'submitWord',word:newWord});newWord='';currTurnPlayerName='gotoanotherplayerquickly'}">
+                    Add a word to steer the drifting time machine!
+                    <input type="text" x-model="newWord" placeholder="Enter a single word" @input="testWord(newWord)"></input>
+                    <div x-show="!wordValid" x-text="wordValidReason"></div>
+                    <input type="submit" value="Submit Word" :disabled="!wordValid"></input>
+                </form>
+            </main>
+        </main>
+    </div>
+    <script>
+        //var WEBSOCKET_URL = 'ws://45.33.103.221:80/playersocket'
+        var WEBSOCKET_URL = 'ws://localhost:80/playersocket'
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('d', () => (Object.assign({
+                state: 'join',
+                newWord: '',
+                username: localStorage.getItem('username')?localStorage.getItem('username'):`Tornado${Math.floor(Math.random()*100000)}`,
+                socket: null,
+                gameStateService: null,
+                gameState: {},
+                gameStarted: false,
+                currTurnPlayerName: '',
+                playerNames: [],
+                wordValid: false,
+                wordValidReason: '',
+
+                init() {
+                    localStorage.setItem('username', this.username); // initial values
+
+                    const gameControllerStateMachine = XState.createMachine({
+                        id: 'playerGameController',
+                        initial: 'connecting',
+                        states: {
+                            connecting: {
+                                on: { CONTINUE: {target:'join'}}
+                            },
+                            join: {
+                                on: { SUBMITTED_NAME: {target:'showgame'}}
+                            },
+                            showgame: {
+                                on: { KICKED: {target:'join'} }
+                            }
+                        }
+                    })
+                    gameStateService = XState.interpret(gameControllerStateMachine)
+                        .onTransition(state => this.state = state.value)
+                        .onTransition(state => console.log(`GAMESTATE - ${state.value}`));
+                        gameStateService.start();
+                    this.gameStateService = gameStateService;
+
+                    let alp = this;
+
+                    setInterval(() => {
+                        gameStateService.send({type:'CONTINUE'});
+                    }, 900000);
+
+                    this.$watch('username', v => {
+                        localStorage.setItem('username', v);
+                    })
+
+                    this.socket = new ReconnectingWebSocket(WEBSOCKET_URL);
+                    this.socket.addEventListener('open', (event)=>{
+                        gameStateService.send({type:'CONTINUE'})
+                        this.testWord(this.newWord) // value might be pre-filled
+                    });
+                    this.socket.addEventListener('message', (event) => {
+                        msg = JSON.parse(event.data)
+                        if (msg.type === 'gamestate') {
+                            this.gameState = msg
+                            this.gameStarted = msg.gameStarted
+                            this.currTurnPlayerName = msg.currTurnPlayerName
+                            this.playerNames = msg.playerNames
+
+                            if (this.gameState.playerNames.indexOf(this.username) < 0) {
+                                // player kicked or new game
+                                gameStateService.send({type:'KICKED'})
+                            }
+                        } else if (msg.type === 'wordCheckResponse') {
+                            this.wordValid = msg.wordValid
+                            this.wordValidReason = msg.wordValidReason
+                        }
+                    });
+
+                    // SENDING -- this.socket.send("datastring")
+                },
+
+                send(obj) {
+                    this.socket.send(JSON.stringify(obj))
+                },
+
+                testWord(newWord) {
+                    this.socket.send(JSON.stringify({type:'testWord', word:newWord}))
+                }
+            })))
+        });
+    </script>
+</body>
+
+</html>
