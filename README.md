@@ -1,5 +1,9 @@
 # Tornado Time Machine
 
+![](doc/sitecomponents.svg)
+![](doc/gameflow.svg)
+
+<!--
 ```plantuml
 title Site Components
 
@@ -37,7 +41,7 @@ prompt -up-> (StableDiffusion): send sentence.
 (StableDiffusion)->pc: reply with image.
 note top of player: Has goal like "See Paris"
 
-```
+```-->
 
 ## Installation
 
